@@ -1,0 +1,70 @@
+name: Create PR (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      head:
+        description: "From branch (head)"
+        required: true
+        default: "pre-production"
+      base:
+        description: "To branch (base)"
+        required: true
+        default: "production"
+      title:
+        description: "PR title"
+        required: true
+        default: "Auto PR: pre-production -> production"
+      body:
+        description: "PR description"
+        required: false
+        default: |
+          <!-- AUTO_PR: pre-production->production -->
+          This PR was created by GitHub Actions.
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  create_pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate branches (optional guard)
+        run: |
+          echo "head=${{ inputs.head }}"
+          echo "base=${{ inputs.base }}"
+          # 例: pre-production -> production 以外は止めたいなら有効化
+          if [ "${{ inputs.head }}" != "pre-production" ] || [ "${{ inputs.base }}" != "production" ]; then
+            echo "Only pre-production -> production is allowed."
+            exit 1
+          fi
+
+      - name: Check if PR already exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          count=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --head "${{ inputs.head }}" \
+            --base "${{ inputs.base }}" \
+            --state open \
+            --json number \
+            --jq 'length')
+
+          if [ "$count" -gt 0 ]; then
+            echo "PR already exists. Skip creating a new one."
+            exit 0
+          fi
+
+      - name: Create PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr create \
+            --repo "${{ github.repository }}" \
+            --head "${{ inputs.head }}" \
+            --base "${{ inputs.base }}" \
+            --title "${{ inputs.title }}" \
+            --body "${{ inputs.body }}"
