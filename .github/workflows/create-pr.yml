@@ -11,35 +11,45 @@ jobs:
   create_pr:
     runs-on: ubuntu-latest
     steps:
-      - name: Set today
+      - name: Set today (JST)
         id: today
-        run: echo "date=$(date '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+        run: echo "date=$(TZ=Asia/Tokyo date '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
       - name: Check if PR already exists
+        id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          count=$(gh pr list \
+          set -euo pipefail
+
+          exists=$(gh pr list \
             --repo "${{ github.repository }}" \
             --head pre-production \
             --base production \
             --state open \
             --json number \
-            --jq 'length')
+            --jq 'if length > 0 then "true" else "false" end')
 
-          if [ "$count" -gt 0 ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
+          echo "exists=${exists}" >> "$GITHUB_OUTPUT"
+
+          if [ "${exists}" = "true" ]; then
             echo "既に pre-production -> production のPRが存在するため、作成せずに終了します。"
           else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "PRが存在しないため、新規作成します。"
           fi
 
+      - name: Debug outputs
+        shell: bash
+        run: |
+          echo "exists='${{ steps.check.outputs.exists }}'"
+
       - name: Create PR
-        if: steps.check.outputs.exists != 'true'
+        if: steps.check.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
+
           gh pr create \
             --repo "${{ github.repository }}" \
             --head pre-production \

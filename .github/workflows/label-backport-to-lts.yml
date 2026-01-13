@@ -1,0 +1,47 @@
+name: Label merged PRs with backport-to-lts
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find eligible merged PRs and add label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          prs=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --base production \
+            --head pre-production \
+            --state merged \
+            --limit 100 \
+            --json number,title,labels,mergedAt \
+            --jq '
+              .[]
+              | select(.title | contains("Release to production - ") | not)
+              | select((.labels // [] | map(.name) | index("backport-to-lts")) == null)
+              | .number
+            ')
+
+          if [ -z "${prs}" ]; then
+            echo "対象となるPRは存在しませんでした。"
+            exit 0
+          fi
+
+          echo "次のPRにラベルを付与します："
+          echo "${prs}"
+
+          for pr in ${prs}; do
+            echo "Labeling PR #${pr}"
+            gh pr edit "${pr}" \
+              --repo "${{ github.repository }}" \
+              --add-label "backport-to-lts"
+          done
