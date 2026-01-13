@@ -11,11 +11,12 @@ jobs:
   create_pr:
     runs-on: ubuntu-latest
     steps:
-      - name: Set today
+      - name: Set today (JST)
         id: today
-        run: echo "date=$(date '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+        run: echo "date=$(TZ=Asia/Tokyo date '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
       - name: Check if PR already exists
+        id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -31,8 +32,11 @@ jobs:
 
           echo "exists=${exists}" >> "$GITHUB_OUTPUT"
 
-          echo "✅ wrote to GITHUB_OUTPUT:"
-          cat "$GITHUB_OUTPUT"
+          if [ "${exists}" = "true" ]; then
+            echo "既に pre-production -> production のPRが存在するため、作成せずに終了します。"
+          else
+            echo "PRが存在しないため、新規作成します。"
+          fi
 
       - name: Debug outputs
         shell: bash
@@ -44,6 +48,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
+
           gh pr create \
             --repo "${{ github.repository }}" \
             --head pre-production \
