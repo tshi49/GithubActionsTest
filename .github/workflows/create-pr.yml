@@ -28,15 +28,19 @@ jobs:
             --jq 'length')
 
           if [ "$count" -gt 0 ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
+            printf "exists=true" >> "$GITHUB_OUTPUT"
             echo "既に pre-production -> production のPRが存在するため、作成せずに終了します。"
           else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
+            printf "exists=false" >> "$GITHUB_OUTPUT"
             echo "PRが存在しないため、新規作成します。"
           fi
 
+      - name: Debug outputs
+        run: |
+          echo "exists='${{ steps.check.outputs.exists }}'"
+
       - name: Create PR
-        if: steps.check.outputs.exists != 'true'
+        if: steps.check.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
